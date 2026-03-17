@@ -1,4 +1,3 @@
-# Here will be Routes, Config, Models all together
 import os
 
 from dotenv import load_dotenv
@@ -9,11 +8,13 @@ from flask_jwt_extended import (
     create_access_token,
     get_jwt_identity,
     jwt_required,
+    set_access_cookies,
+    unset_jwt_cookies,
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import select
 
-from models import Server, User, db
+from models import Server, User, admin_required, db
 
 load_dotenv()
 from utils import hash_password, verify_password
@@ -39,9 +40,14 @@ def create_app():
 
     # Config and Initialization
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.db"
+    app.config["JWT_TOKEN_LOCATION"] = ["cookies"]
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
+    app.config["JWT_COOKIE_SECURE"] = False
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = True
+    app.config["JWT_CSRF_IN_COOKIES"] = True
+    app.config["JWT_CSRF_HEADER_NAME"] = "X-CSRF-TOKEN"
     db.init_app(app)
-    CORS(app)
+    CORS(app, supports_credentials=True, origins="*")
     jwt = JWTManager(app)
 
     # --- ROUTES ---
@@ -81,9 +87,10 @@ def create_app():
             return jsonify({"error": "Username and password are required"}), 400
         if check_if_user_exists(username):
             if verify_password_from_db(username, password):
-                # Generate jwt token and return
+                response = jsonify({"msg": "login successful"})
                 access_token = create_access_token(identity=username)
-                return jsonify({"access_token": access_token}), 200
+                set_access_cookies(response, access_token)
+                return response
             else:
                 return jsonify({"error": "Invalid credentials"}), 401
         else:
@@ -91,35 +98,86 @@ def create_app():
                 {"error": "Failed to login, incorrect username or password"}
             ), 401
 
+    @app.route("/api/auth/logout", methods=["POST"])
+    @jwt_required(locations=["cookies"])
+    def logout():
+        response = jsonify({"msg": "Logout successful"})
+        unset_jwt_cookies(response)
+        return response
+
     # Server management
     # Returns a list of all servers. Logic: Query DB, return JSON array.
     @app.route("/api/servers", methods=["GET"])
+    @jwt_required(locations=["cookies"])
     def servers():
-        pass
+        statement = select(Server)
+        server_list = db.session.execute(statement).scalars().all()
+        result = []
+        for server in server_list:
+            result.append(
+                {
+                    "id": server.id,
+                    "name": server.name,
+                    "ip_address": server.ip_address,
+                    "version": server.version,
+                    "game_mode": server.game_mode,
+                    "image_url": server.image_url,
+                    "owner_id": server.owner_id,
+                }
+            )
+        return jsonify(result), 200
 
     # Details of one server.
-    @app.route("/api/servers/<int:server_id>")
+    @app.route("/api/servers/<int:server_id>", methods=["GET"])
+    @jwt_required(locations=["cookies"])
     def server_details():
         pass
 
     # Create a server. Logic: Check if user is logged in via JWT. Save owner_id as the current user's ID.
     @app.route("/api/servers", methods=["POST"])
-    @jwt_required()
+    @jwt_required(locations=["cookies"])
     def create_server():
-        pass
+        try:
+            data = request.get_json()
+            current_user = get_jwt_identity()
+            statement = select(User).where(User.username == current_user)
+            user = db.session.execute(statement).scalar()
+            if user and data:
+                new_server = Server(
+                    name=data.get("name"),
+                    ip_address=data.get("ip_address"),
+                    version=data.get("version"),
+                    game_mode=data.get("game_mode"),
+                    image_url=data.get("image_url"),
+                    owner_id=user.id,
+                )
+                db.session.add(new_server)
+                db.session.commit()
+                return jsonify({"message": "Succesfully created server!"}), 201
+            else:
+                return jsonify(
+                    {"error": "Cannot find user or data wasn't fetched!"}
+                ), 400
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": "Failed to create server!"}), 500
 
     # Delete a server. Crucial Logic: Check if the requester is the owner_id OR if the requester has the admin role. If neither, return 403 Forbidden.
-    @app.route("/api/servers/<int:server_id>")
+    @app.route("/api/servers/<int:server_id>", methods=["DELETE"])
+    @jwt_required(locations=["cookies"])
     def delete_server():
         pass
 
     # Edit a server. Logic: Same permission check as delete, but only Admins can edit servers they don't own.
-    @app.route("/api/servers/<int:server_id>")
+    @app.route("/api/servers/<int:server_id>", methods=["PUT"])
+    @jwt_required(locations=["cookies"])
     def edit_server():
         pass
 
     # Returns data for charts (e.g., total users, total servers, servers per game mode). Logic: Perform SQL aggregations (COUNT, GROUP BY).
-    @app.route("/api/admin/stats")
+    @app.route("/api/admin/stats", methods=["GET"])
+    @jwt_required(locations=["cookies"])
+    @admin_required
     def admin_stats():
         pass
 

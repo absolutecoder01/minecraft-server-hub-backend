@@ -35,12 +35,11 @@ def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         # Get logged user id from jwt token
-        #
-        # Find user in database using id
-        #
-        # Check if user.role == admin
-        #
-        # If admin
-        return fn(...)
-        # If not
-        return 403
+        current_user_identity = get_jwt_identity()
+        user = User.query.filter_by(username=current_user_identity).first()
+        if user and user.role == "admin":
+            return fn(*args, **kwargs)
+        else:
+            return jsonify({"error": "Admin access required!"}), 403
+
+    return wrapper
