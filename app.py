@@ -11,21 +11,35 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import select
 
-from models import db
+from models import Server, User, db
 
 load_dotenv()
 from utils import hash_password, verify_password
 
 
+def check_if_user_exists(username):
+    statement = select(User.username).where(User.username == username)
+    user = db.session.execute(statement).scalar()
+    return user is not None
+
+
+def verify_password_from_db(username, password):
+    statement = select(User.password).where(User.username == username)
+    password_from_db = db.session.execute(statement).scalar()
+    if verify_password(password_from_db, password):
+        return True
+    else:
+        return False
+
+
 def create_app():
     app = Flask(__name__)
 
-    # Konfiguracja
+    # Config and Initialization
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.db"
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
-
-    # Inicjalizacja
     db.init_app(app)
     CORS(app)
     jwt = JWTManager(app)
@@ -39,16 +53,47 @@ def create_app():
     # Accepts username, password, role. Logic: Check if user exists, hash password, save to DB.
     @app.route("/api/auth/register", methods=["POST"])
     def register():
-        pass
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+        if check_if_user_exists(username):
+            return jsonify({"error": "User with this username already exists"}), 409
+        role = data.get("role", "user")
+        hashed_passwd = hash_password(password)
+        new_user = User(username=username, password=hashed_passwd, role=role)
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            return jsonify({"message": "User created successfully"}), 201
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({"error": "Failed to create user!"}), 500
 
     # Accepts username, password. Logic: Verify password, return a JWT token.
-    @app.route("/api/auth/login")
+    @app.route("/api/auth/login", methods=["POST"])
     def login():
-        pass
+        data = request.get_json()
+        username = data.get("username")
+        password = data.get("password")
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+        if check_if_user_exists(username):
+            if verify_password_from_db(username, password):
+                # Generate jwt token and return
+                access_token = create_access_token(identity=username)
+                return jsonify({"access_token": access_token}), 200
+            else:
+                return jsonify({"error": "Invalid credentials"}), 401
+        else:
+            return jsonify(
+                {"error": "Failed to login, incorrect username or password"}
+            ), 401
 
     # Server management
     # Returns a list of all servers. Logic: Query DB, return JSON array.
-    @app.route("/api/servers")
+    @app.route("/api/servers", methods=["GET"])
     def servers():
         pass
 
@@ -58,7 +103,8 @@ def create_app():
         pass
 
     # Create a server. Logic: Check if user is logged in via JWT. Save owner_id as the current user's ID.
-    @app.route("/api/servers")
+    @app.route("/api/servers", methods=["POST"])
+    @jwt_required()
     def create_server():
         pass
 
