@@ -10,22 +10,6 @@ Backend for Minecraft server management platform with professional authenticatio
 
 ---
 
-## Table of Contents
-
-- [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Installation](#-installation)
-- [Configuration](#-configuration)
-- [Project Structure](#-project-structure)
-- [API Documentation](#-api-documentation)
-- [Authentication](#-authentication)
-- [Usage Examples](#-usage-examples)
-- [Testing](#-testing)
-- [Security](#-security)
-- [License](#-license)
-
----
-
 ## Features
 
 ### 🔐 Authentication & Authorization
