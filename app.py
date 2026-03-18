@@ -12,12 +12,12 @@ from flask_jwt_extended import (
     unset_jwt_cookies,
 )
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from models import Server, User, admin_required, db
+from utils import hash_password, verify_password
 
 load_dotenv()
-from utils import hash_password, verify_password
 
 
 def check_if_user_exists(username):
@@ -130,10 +130,26 @@ def create_app():
     # Details of one server.
     @app.route("/api/servers/<int:server_id>", methods=["GET"])
     @jwt_required(locations=["cookies"])
-    def server_details():
-        pass
+    def server_details(server_id):
+        statement = select(Server).where(Server.id == server_id)
+        server_details = db.session.execute(statement).scalar()
+        if server_details:
+            return jsonify(
+                {
+                    "id": server_details.id,
+                    "name": server_details.name,
+                    "ip_address": server_details.ip_address,
+                    "version": server_details.version,
+                    "game_mode": server_details.game_mode,
+                    "image_url": server_details.image_url,
+                    "owner_id": server_details.owner_id,
+                }
+            ), 200
+        else:
+            return jsonify({"error": "Failed to find server!"}), 404
 
     # Create a server. Logic: Check if user is logged in via JWT. Save owner_id as the current user's ID.
+    # FIX: I am able to create empty server with empty data.
     @app.route("/api/servers", methods=["POST"])
     @jwt_required(locations=["cookies"])
     def create_server():
@@ -142,7 +158,7 @@ def create_app():
             current_user = get_jwt_identity()
             statement = select(User).where(User.username == current_user)
             user = db.session.execute(statement).scalar()
-            if user and data:
+            if user and data and len(data) > 0:
                 new_server = Server(
                     name=data.get("name"),
                     ip_address=data.get("ip_address"),
@@ -165,21 +181,90 @@ def create_app():
     # Delete a server. Crucial Logic: Check if the requester is the owner_id OR if the requester has the admin role. If neither, return 403 Forbidden.
     @app.route("/api/servers/<int:server_id>", methods=["DELETE"])
     @jwt_required(locations=["cookies"])
-    def delete_server():
-        pass
+    def delete_server(server_id):
+        current_user_identity = get_jwt_identity()
+        st = select(User).where(User.username == current_user_identity)
+        user = db.session.execute(st).scalar()
+
+        if user is not None:
+            st = select(Server).where(Server.id == server_id)
+            server = db.session.execute(st).scalar()
+            if server is not None:
+                if server.owner_id == user.id or user.role == "admin":
+                    db.session.delete(server)
+                    db.session.commit()
+                    return jsonify({"message": "Server succesfully deleted"}), 204
+                return jsonify(
+                    {
+                        "error": "Current user identity does not match owner of the server"
+                    }
+                ), 403
+        return jsonify({"error": "User not found"}), 404
 
     # Edit a server. Logic: Same permission check as delete, but only Admins can edit servers they don't own.
     @app.route("/api/servers/<int:server_id>", methods=["PUT"])
     @jwt_required(locations=["cookies"])
-    def edit_server():
-        pass
+    def edit_server(server_id):
+        current_user_identity = get_jwt_identity()
+        st = select(User).where(User.username == current_user_identity)
+        user = db.session.execute(st).scalar()
+        if user is not None:
+            st = select(Server).where(Server.id == server_id)
+            server = db.session.execute(st).scalar()
+            if server is not None:
+                if server.owner_id == user.id or user.role == "admin":
+                    new_data = request.get_json()
+                    if new_data:
+                        if new_data.get("name"):
+                            server.name = new_data.get("name")
+                        if new_data.get("ip_address"):
+                            server.ip_address = new_data.get("ip_address")
+                        if new_data.get("version"):
+                            server.version = new_data.get("version")
+                        if new_data.get("game_mode"):
+                            server.game_mode = new_data.get("game_mode")
+                        if new_data.get("image_url"):
+                            server.image_url = new_data.get("image_url")
+                        db.session.commit()
+                        return jsonify({"message": "Server updated successfully!"}), 200
+                    else:
+                        return jsonify({"error": "No data was provided!"}), 400
+                else:
+                    return jsonify(
+                        {"error": "You do not have rights to edit this server!"}
+                    ), 403
+            else:
+                return jsonify({"error": "Server not found!"}), 404
 
     # Returns data for charts (e.g., total users, total servers, servers per game mode). Logic: Perform SQL aggregations (COUNT, GROUP BY).
     @app.route("/api/admin/stats", methods=["GET"])
     @jwt_required(locations=["cookies"])
     @admin_required
     def admin_stats():
-        pass
+        total_user_count = db.session.execute(select(func.count(User.id))).scalar()
+        total_server_count = db.session.execute(select(func.count(Server.id))).scalar()
+        total_admin_count = db.session.execute(
+            select(func.count(User.id)).where(User.role == "admin")
+        ).scalar()
+        users_by_role = db.session.execute(
+            select(User.role, func.count(User.id)).group_by(User.role)
+        ).all()
+        users_by_role_result = {role: count for role, count in users_by_role}
+        server_by_game_mode = db.session.execute(
+            select(Server.game_mode, func.count(Server.id)).group_by(Server.game_mode)
+        ).all()
+        server_by_game_mode_result = {
+            game_mode: count for game_mode, count in server_by_game_mode
+        }
+        return jsonify(
+            {
+                "total_user_count": total_user_count,
+                "total_server_count": total_server_count,
+                "total_admin_count": total_admin_count,
+                "users_by_role": users_by_role_result,
+                "server_by_game_mode": server_by_game_mode_result,
+            }
+        ), 200
 
     return app
 

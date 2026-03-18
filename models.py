@@ -20,11 +20,11 @@ class User(db.Model):
 class Server(db.Model):
     __tablename__ = "server"
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    ip_address = db.Column(db.String)
-    version = db.Column(db.String)
-    game_mode = db.Column(db.String)
-    image_url = db.Column(db.String)
+    name = db.Column(db.String, nullable=False)
+    ip_address = db.Column(db.String, nullable=False)
+    version = db.Column(db.String, nullable=False)
+    game_mode = db.Column(db.String, nullable=False)
+    image_url = db.Column(db.String, nullable=False)
     owner_id = db.Column(db.Integer, ForeignKey("user.id"), nullable=False)
 
 
