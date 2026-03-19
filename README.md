@@ -162,6 +162,7 @@ GET /api/servers
 Authorization: Cookie (access_token_cookie)
 
 Response (200):
+```json
 [
   {
     "id": 1,
@@ -173,7 +174,7 @@ Response (200):
     "owner_id": 1
   }
 ]
-
+```
 ---
 
 #### Get Server Details
@@ -181,6 +182,7 @@ GET /api/servers/<id>
 Authorization: Cookie (access_token_cookie)
 
 Response (200):
+```json
 {
   "id": 1,
   "name": "My Server",
@@ -190,7 +192,7 @@ Response (200):
   "image_url": "https://example.com/image.png",
   "owner_id": 1
 }
-
+```
 ---
 
 #### Create Server
@@ -200,6 +202,7 @@ X-CSRF-TOKEN: <csrf_token_from_cookie>
 Authorization: Cookie (access_token_cookie)
 
 Body:
+```json
 {
   "name": "New Server",
   "ip_address": "192.168.1.100",
@@ -207,11 +210,14 @@ Body:
   "game_mode": "survival",
   "image_url": "https://example.com/image.png"
 }
+```
 
 Response (201):
+```json
 {
   "message": "Succesfully created server!"
 }
+```
 
 ---
 
@@ -222,15 +228,19 @@ X-CSRF-TOKEN: <csrf_token_from_cookie>
 Authorization: Cookie (access_token_cookie)
 
 Body (only fields to update):
+```json
 {
   "name": "Updated Name",
   "version": "1.20.4"
 }
+```
 
 Response (200):
+```json
 {
   "message": "Server updated successfully!"
 }
+```
 
 ---
 
@@ -252,6 +262,7 @@ Authorization: Cookie (access_token_cookie)
 Required: admin role
 
 Response (200):
+```json
 {
   "total_user_count": 50,
   "total_server_count": 40,
@@ -266,6 +277,7 @@ Response (200):
     "pvp": 12
   }
 }
+```
 
 ---
 
@@ -280,6 +292,7 @@ Response (200):
 
 ### Getting CSRF Token (JavaScript)
 
+```javascript
 function getCookie(name) {
   const value = '; ' + document.cookie;
   const parts = value.split('; ' + name + '=');
@@ -298,7 +311,7 @@ fetch('/api/servers', {
   },
   body: JSON.stringify({...})
 });
-
+```
 ---
 
 ## Testing
