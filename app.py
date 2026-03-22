@@ -87,7 +87,13 @@ def create_app():
             return jsonify({"error": "Username and password are required"}), 400
         if check_if_user_exists(username):
             if verify_password_from_db(username, password):
-                response = jsonify({"msg": "login successful"})
+                statement = select(User).where(User.username == username)
+                user = db.session.execute(statement).scalar()
+                response = jsonify({
+                                "msg": "login successful",
+                                "username": username,
+                                "role": user.role
+                            })
                 access_token = create_access_token(identity=username)
                 set_access_cookies(response, access_token)
                 return response
@@ -149,7 +155,6 @@ def create_app():
             return jsonify({"error": "Failed to find server!"}), 404
 
     # Create a server. Logic: Check if user is logged in via JWT. Save owner_id as the current user's ID.
-    # FIX: I am able to create empty server with empty data.
     @app.route("/api/servers", methods=["POST"])
     @jwt_required(locations=["cookies"])
     def create_server():
