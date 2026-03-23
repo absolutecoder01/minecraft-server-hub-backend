@@ -92,7 +92,8 @@ def create_app():
                 response = jsonify({
                                 "msg": "login successful",
                                 "username": username,
-                                "role": user.role
+                                "role": user.role,
+                                "id": user.id
                             })
                 access_token = create_access_token(identity=username)
                 set_access_cookies(response, access_token)
