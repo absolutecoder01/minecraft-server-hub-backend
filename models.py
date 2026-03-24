@@ -14,6 +14,7 @@ class User(db.Model):
     username = db.Column(db.String, unique=True, nullable=False)
     password = db.Column(db.String, nullable=False)
     role = db.Column(db.String, nullable=False, default="user")
+    status = db.Column(db.String, nullable=False, default="online")
     servers = db.relationship("Server", backref="owner", lazy=True)
 
 
@@ -29,8 +30,6 @@ class Server(db.Model):
 
 
 # Creating decorator admin_required for security reasons
-
-
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):

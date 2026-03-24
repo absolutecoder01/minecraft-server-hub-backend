@@ -73,7 +73,7 @@ def create_app():
             db.session.add(new_user)
             db.session.commit()
             return jsonify({"message": "User created successfully"}), 201
-        except Exception as e:
+        except Exception:
             db.session.rollback()
             return jsonify({"error": "Failed to create user!"}), 500
 
@@ -272,8 +272,33 @@ def create_app():
             }
         ), 200
 
-    return app
+    @app.route("/api/admin/users", methods=["GET"])
+    @jwt_required(locations=["cookies"])
+    @admin_required
+    def users_stats():
+        try:
+            all_users = User.query.all()
+            result = []
 
+            for user in all_users:
+                servers_count = Server.query.filter_by(owner_id=user.id).count()
+
+                status = "online"
+
+                result.append({
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.username + "@nexushub.net",
+                    "role": user.role,
+                    "servers_count": servers_count,
+                    "status": status
+                })
+            return jsonify(result), 200
+
+        except Exception as e:
+                return jsonify({"error": "Failed to fetch users!", "details": str(e)}), 500
+
+    return app
 
 if "__main__" == __name__:
     app = create_app()
